@@ -1,13 +1,25 @@
 #!/usr/bin/env php
 <?php
-if($argc < 1) {
-	echo "Usage: download URI_OF_CSS_FILE_FROM_GOOGLE" . PHP_EOL;
+if(!file_exists("vendor/autoload.php")) {
+	echo "Please install dependencies using Composer" . PHP_EOL;
 	exit(1);
 }
+require "vendor/autoload.php";
 
 const VALID_HOST = "fonts.googleapis.com";
 const VALID_PATH = "/css";
 const VALID_QUERY = "family=";
+const REGEX_CSS_PARTS = "/\/\*\s*(?<UNICODE_NAME>[^\s]+)\s*\*\/(?<CSS_LINES>[^}]*)/s";
+const REGEX_FONT_FAMILY = "/font-family: [\"']([^\"']+)/";
+const REGEX_FONT_STYLE = "/font-style: ([^;]+)/";
+const REGEX_FONT_WEIGHT = "/font-weight: ([^;]+)/";
+const REGEX_URI = "/src: url\(([^\)]*)/";
+const REGEX_UNICODE_RANGE = "/unicode-range: ([^;]*)/";
+
+if($argc < 1) {
+	echo "Usage: download URI_OF_CSS_FILE_FROM_GOOGLE" . PHP_EOL;
+	exit(2);
+}
 
 try {
 	$uri = $argv[1];
@@ -15,17 +27,30 @@ try {
 }
 catch(RuntimeException $exception) {
 	echo "Error: " . $exception->getMessage() . PHP_EOL;
-	exit(2);
+	exit(3);
 }
 
 echo "Downloading $uri ..." . PHP_EOL;
+
+$http = new \Gt\Fetch\Http([
+	CURLOPT_USERAGENT => "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:73.0) Gecko/20100101 Firefox/73.0",
+]);
+$http->fetch($uri)
+->then(function(\Gt\Fetch\Response\BodyResponse $response) {
+	if(!$response->ok) {
+		throw new RuntimeException("Error downloading CSS");
+	}
+
+	return $response->text();
+})->then("parseCss");
+$http->wait();
 
 function checkUri(string $uri):void {
 	$components = parse_url($uri);
 
 	if(!array_key_exists("host", $components)
-	|| !array_key_exists("path", $components)
-	|| !array_key_exists("query", $components)) {
+		|| !array_key_exists("path", $components)
+		|| !array_key_exists("query", $components)) {
 		throw new RuntimeException("URI is not a valid for Google Fonts CSS");
 	}
 
@@ -39,5 +64,48 @@ function checkUri(string $uri):void {
 
 	if(strpos($components["query"], VALID_QUERY) !== 0) {
 		throw new RuntimeException("Query is invalid - $components[query]");
+	}
+}
+
+function parseCss(string $css):void {
+	if(!preg_match_all(REGEX_CSS_PARTS, $css, $matches)) {
+		throw new RuntimeException("Failed parsing CSS");
+	}
+
+	$cssData = [];
+
+	foreach($matches["UNICODE_NAME"] as $i => $unicodeName) {
+		$fontFamily = null;
+		$fontFamily = null;
+		$fontStyle = null;
+		$fontWeight = null;
+		$woffUri = null;
+		$unicodeRange = null;
+
+		foreach(explode("\n", $matches["CSS_LINES"][$i]) as $line) {
+			if(preg_match(REGEX_FONT_FAMILY, $line, $lineMatches)) {
+				$fontFamily = $lineMatches[1];
+			}
+			if(preg_match(REGEX_FONT_STYLE, $line, $lineMatches)) {
+				$fontStyle = $lineMatches[1];
+			}
+			if(preg_match(REGEX_FONT_WEIGHT, $line, $lineMatches)) {
+				$fontWeight = $lineMatches[1];
+			}
+			if(preg_match(REGEX_URI, $line, $lineMatches)) {
+				$woffUri = $lineMatches[1];
+			}
+			if(preg_match(REGEX_UNICODE_RANGE, $line, $lineMatches)) {
+				$unicodeRange = $lineMatches[1];
+			}
+		}
+
+		if(!isset($cssData[$fontFamily])) {
+			$cssData[$fontFamily] = [];
+		}
+
+		if(!isset($cssData[$fontFamily][$unicodeName])) {
+			$cssData[$fontFamily][$unicodeName] = [];
+		}
 	}
 }
