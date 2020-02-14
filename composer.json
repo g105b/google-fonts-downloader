@@ -1,0 +1,9 @@
+{
+	"name": "g105b/google-fonts-downloader",
+	"description": "Download CSS and WOFF2 files from Google Fonts",
+
+	"require": {
+		"php": ">=7.2",
+		"phpgt/fetch": "1.*"
+	}
+}
