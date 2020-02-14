@@ -1,0 +1,43 @@
+#!/usr/bin/env php
+<?php
+if($argc < 1) {
+	echo "Usage: download URI_OF_CSS_FILE_FROM_GOOGLE" . PHP_EOL;
+	exit(1);
+}
+
+const VALID_HOST = "fonts.googleapis.com";
+const VALID_PATH = "/css";
+const VALID_QUERY = "family=";
+
+try {
+	$uri = $argv[1];
+	checkUri($uri);
+}
+catch(RuntimeException $exception) {
+	echo "Error: " . $exception->getMessage() . PHP_EOL;
+	exit(2);
+}
+
+echo "Downloading $uri ..." . PHP_EOL;
+
+function checkUri(string $uri):void {
+	$components = parse_url($uri);
+
+	if(!array_key_exists("host", $components)
+	|| !array_key_exists("path", $components)
+	|| !array_key_exists("query", $components)) {
+		throw new RuntimeException("URI is not a valid for Google Fonts CSS");
+	}
+
+	if($components["host"] !== VALID_HOST) {
+		throw new RuntimeException("Host is invalid - $components[host]");
+	}
+
+	if($components["path"] !== VALID_PATH) {
+		throw new RuntimeException("Path is invalid - $components[path]");
+	}
+
+	if(strpos($components["query"], VALID_QUERY) !== 0) {
+		throw new RuntimeException("Query is invalid - $components[query]");
+	}
+}
