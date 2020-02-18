@@ -17,7 +17,7 @@ const REGEX_CSS_PARTS = "/\/\*\s*(?<UNICODE_NAME>[^\s]+)\s*\*\/(?<CSS_LINES>[^}]
 const REGEX_FONT_FAMILY = "/font-family: [\"']([^\"']+)/";
 const REGEX_FONT_STYLE = "/font-style: ([^;]+)/";
 const REGEX_FONT_WEIGHT = "/font-weight: ([^;]+)/";
-const REGEX_URI = "/src: url\(([^\)]*)/";
+const REGEX_URI = "/src: .* url\(([^\)]*)/";
 const REGEX_UNICODE_RANGE = "/unicode-range: ([^;]*)/";
 const WEIGHT_NAMES = [
 	"thin" => 100,
@@ -185,17 +185,24 @@ function download(array $data, string $outputTo):void {
 				$weightName = getWeightName($properties["weight"]);
 				$fileName = "$lowercaseFontName-$weightName-$properties[style]-$unicodeName.woff2";
 				$src = $properties["src"];
+				if(empty($src)) {
+					var_dump($properties);die();
+				}
+				echo $src . PHP_EOL;
 
 				$http->fetch($src)
 				->then(function(BodyResponse $response)use($src) {
+					echo "Response: " . $src . PHP_EOL;
+
 					if(!$response->ok) {
 						throw new RuntimeException("Error downloading font: $src");
 					}
 
-					echo $src . PHP_EOL;
 					return $response->blob();
 				})->then(function($blob)use($outputTo, $fileName) {
-					file_put_contents("$outputTo/$fileName", $blob);
+					if(!file_put_contents("$outputTo/$fileName", $blob)) {
+						throw new RuntimeException("Failed writing font file: $outputTo/$fileName");
+					}
 				});
 			}
 		}
