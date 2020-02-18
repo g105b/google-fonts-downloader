@@ -255,7 +255,7 @@ function writeSass(array $data, string $outputTo, string $fontPathPrefix):void {
 	@each \$style in \$font-styles {
 		@each \$weight-name, \$weight-value in \$font-weights {
 			@font-face {
-				font-family: "Roboto Slab";
+				font-family: "$fontFamily";
 				font-style: \$style;
 				font-weight: \$weight-value;
 				font-display: swap;
