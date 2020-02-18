@@ -1,5 +1,9 @@
 #!/usr/bin/env php
 <?php
+
+use Gt\Fetch\Http;
+use Gt\Fetch\Response\BodyResponse;
+
 if(!file_exists("vendor/autoload.php")) {
 	echo "Please install dependencies using Composer" . PHP_EOL;
 	exit(1);
@@ -17,7 +21,7 @@ const REGEX_URI = "/src: url\(([^\)]*)/";
 const REGEX_UNICODE_RANGE = "/unicode-range: ([^;]*)/";
 
 if($argc < 1) {
-	echo "Usage: download URI_OF_CSS_FILE_FROM_GOOGLE" . PHP_EOL;
+	echo "Usage: download CSS_URI [PATH_PREFIX] [OUTPUT_TO]" . PHP_EOL;
 	exit(2);
 }
 
@@ -30,20 +34,37 @@ catch(RuntimeException $exception) {
 	exit(3);
 }
 
+$pathPrefix = "/";
+if(isset($argv[2])) {
+	$pathPrefix = $argv[2];
+}
+
+$outputTo = __DIR__ . "/font";
+if(isset($argv[3])) {
+	$outputTo = $argv[3];
+}
+
 echo "Downloading $uri ..." . PHP_EOL;
 
-$http = new \Gt\Fetch\Http([
+$data = [];
+
+$http = new Http([
 	CURLOPT_USERAGENT => "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:73.0) Gecko/20100101 Firefox/73.0",
 ]);
 $http->fetch($uri)
-->then(function(\Gt\Fetch\Response\BodyResponse $response) {
+->then(function(BodyResponse $response) {
 	if(!$response->ok) {
 		throw new RuntimeException("Error downloading CSS");
 	}
 
 	return $response->text();
-})->then("parseCss");
+})->then(function(string $css)use(&$data):void {
+	$data = parseCss($css);
+});
 $http->wait();
+
+download($data, $outputTo);
+writeCss($data, $outputTo, $pathPrefix);
 
 function checkUri(string $uri):void {
 	$components = parse_url($uri);
@@ -67,7 +88,7 @@ function checkUri(string $uri):void {
 	}
 }
 
-function parseCss(string $css):void {
+function parseCss(string $css):array {
 	if(!preg_match_all(REGEX_CSS_PARTS, $css, $matches)) {
 		throw new RuntimeException("Failed parsing CSS");
 	}
@@ -107,5 +128,48 @@ function parseCss(string $css):void {
 		if(!isset($cssData[$fontFamily][$unicodeName])) {
 			$cssData[$fontFamily][$unicodeName] = [];
 		}
+
+		$cssData[$fontFamily][$unicodeName]["style"] = $fontStyle;
+		$cssData[$fontFamily][$unicodeName]["weight"] = $fontWeight;
+		$cssData[$fontFamily][$unicodeName]["src"] = $woffUri;
+		$cssData[$fontFamily][$unicodeName]["range"] = $unicodeRange;
 	}
+
+	return $cssData;
+}
+
+function download(array $data, string $outputTo):void {
+	$outputTo = rtrim($outputTo, "/");
+	if(!is_dir($outputTo)) {
+		mkdir($outputTo, 0775, true);
+	}
+
+	$http = new Http();
+
+	foreach($data as $fontFamily => $unicodeNames) {
+		$lowercaseFontName = strtolower(str_replace(" ", "-", $fontFamily));
+
+		foreach($unicodeNames as $unicodeName => $properties) {
+			$fileName = "$lowercaseFontName-$properties[weight]-$properties[style]-$unicodeName.woff2";
+			$src = $properties["src"];
+
+			$http->fetch($src)
+			->then(function(BodyResponse $response)use($src) {
+				if(!$response->ok) {
+					throw new RuntimeException("Error downloading font: $src");
+				}
+
+				echo $src . PHP_EOL;
+				return $response->blob();
+			})->then(function($blob)use($outputTo, $fileName) {
+				file_put_contents("$outputTo/$fileName", $blob);
+			});
+		}
+	}
+
+	$http->wait();
+}
+
+function writeCss(array $data, string $outputTo, string $pathPrefix):void {
+
 }
