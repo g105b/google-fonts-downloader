@@ -179,6 +179,10 @@ function download(array $data, string $outputTo):void {
 
 	foreach($data as $fontFamily => $unicodeNames) {
 		$lowercaseFontName = strtolower(str_replace(" ", "-", $fontFamily));
+		$outputToWithFontName = "$outputTo/$lowercaseFontName";
+		if(!is_dir($outputToWithFontName)) {
+			mkdir($outputToWithFontName, 0775, true);
+		}
 
 		foreach($unicodeNames as $unicodeName => $definitions) {
 			foreach($definitions as $properties) {
@@ -199,9 +203,9 @@ function download(array $data, string $outputTo):void {
 					}
 
 					return $response->blob();
-				})->then(function($blob)use($outputTo, $fileName) {
-					if(!file_put_contents("$outputTo/$fileName", $blob)) {
-						throw new RuntimeException("Failed writing font file: $outputTo/$fileName");
+				})->then(function($blob)use($outputToWithFontName, $fileName) {
+					if(!file_put_contents("$outputToWithFontName/$fileName", $blob)) {
+						throw new RuntimeException("Failed writing font file: $outputToWithFontName/$fileName");
 					}
 				});
 			}
@@ -259,7 +263,7 @@ function writeSass(array $data, string $outputTo, string $fontPathPrefix):void {
 				font-style: \$style;
 				font-weight: \$weight-value;
 				font-display: swap;
-				src: url("$fontPathPrefix/$lowercaseFontName-#{\$weight-name}-#{\$style}-#{\$unicode-name}.woff2") format("woff2");
+				src: url("$fontPathPrefix/$lowercaseFontName/$lowercaseFontName-#{\$weight-name}-#{\$style}-#{\$unicode-name}.woff2") format("woff2");
 				unicode-range: \$unicode-range;
 			}
 		}
