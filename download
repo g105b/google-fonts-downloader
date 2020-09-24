@@ -179,6 +179,10 @@ function download(array $data, string $outputTo):void {
 
 	foreach($data as $fontFamily => $unicodeNames) {
 		$lowercaseFontName = strtolower(str_replace(" ", "-", $fontFamily));
+		$outputToWithFontName = "$outputTo/$lowercaseFontName";
+		if(!is_dir($outputToWithFontName)) {
+			mkdir($outputToWithFontName, 0775, true);
+		}
 
 		foreach($unicodeNames as $unicodeName => $definitions) {
 			foreach($definitions as $properties) {
