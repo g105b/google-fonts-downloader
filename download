@@ -11,7 +11,7 @@ if(!file_exists("vendor/autoload.php")) {
 require "vendor/autoload.php";
 
 const VALID_HOST = "fonts.googleapis.com";
-const VALID_PATH = "/css2";
+const VALID_PATH = "/css";
 const VALID_QUERY = "family=";
 const REGEX_CSS_PARTS = "/\/\*\s*(?<UNICODE_NAME>[^\s]+)\s*\*\/(?<CSS_LINES>[^}]*)/s";
 const REGEX_FONT_FAMILY = "/font-family: [\"']([^\"']+)/";
