@@ -69,20 +69,11 @@ echo "Downloading $uri ..." . PHP_EOL;
 
 $data = [];
 
-$http = new Http([
-	CURLOPT_USERAGENT => "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:73.0) Gecko/20100101 Firefox/73.0",
-]);
-$http->fetch($uri)
-->then(function(BodyResponse $response) {
-	if(!$response->ok) {
-		throw new RuntimeException("Error downloading CSS");
-	}
-
-	return $response->text();
-})->then(function(string $css)use(&$data):void {
-	$data = parseCss($css);
-});
-$http->wait();
+$ch = curl_init($uri);
+curl_setopt($ch, CURLOPT_USERAGENT, "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:73.0) Gecko/20100101 Firefox/73.0");
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+$css = curl_exec($ch);
+$data = parseCss($css);
 
 $outputTo = rtrim($outputTo, "/");
 if(!is_dir($outputTo)) {
@@ -175,8 +166,6 @@ function getWeightName(string $cssWeight):string {
 }
 
 function download(array $data, string $outputTo):void {
-	$http = new Http();
-
 	foreach($data as $fontFamily => $unicodeNames) {
 		$lowercaseFontName = strtolower(str_replace(" ", "-", $fontFamily));
 		$outputToWithFontName = "$outputTo/$lowercaseFontName";
@@ -196,29 +185,20 @@ function download(array $data, string $outputTo):void {
 				}
 				echo $src . PHP_EOL;
 
-				$http->fetch($src)
-				->then(function(BodyResponse $response)use($src) {
-					echo "Response: " . $src . PHP_EOL;
+				$ch = curl_init($src);
+				curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+				curl_setopt($ch, CURLOPT_USERAGENT, "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:73.0) Gecko/20100101 Firefox/73.0");
+				$blob = curl_exec($ch);
+				if(!is_dir(dirname($pathName))) {
+					mkdir(dirname($pathName), 0775, true);
+				}
 
-					if(!$response->ok) {
-						throw new RuntimeException("Error downloading font: $src");
-					}
-
-					return $response->blob();
-				})->then(function($blob)use($outputTo, $pathName) {
-					if(!is_dir(dirname($pathName))) {
-						mkdir(dirname($pathName), 0775, true);
-					}
-
-					if(!file_put_contents($pathName, $blob)) {
-						throw new RuntimeException("Failed writing font file: $pathName");
-					}
-				});
+				if(!file_put_contents($pathName, $blob)) {
+					throw new RuntimeException("Failed writing font file: $pathName");
+				}
 			}
 		}
 	}
-
-	$http->wait();
 }
 
 function writeSass(array $data, string $outputTo, string $fontPathPrefix):void {
