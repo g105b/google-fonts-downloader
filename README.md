@@ -19,8 +19,8 @@ Usage
 ### Step by step:
 
 1. Find a font (or fonts) you like at https://fonts.google.com, selecting the weights and styles you want.
-2. Copy the embed URI. Example: `https://fonts.googleapis.com/css?family=Akronim|Fira+Sans:100,400,400i,700|Lacquer|Odibee+Sans&display=swap` 
-3. Paste the embed URI as the first quoted parameter to this script: `./download "https://fonts.googleapis.com/css?family=Akronim|Fira+Sans:100,400,400i,700|Lacquer|Odibee+Sans&display=swap"`
+2. Copy the embed URI. Both the legacy `/css` and current `/css2` Google Fonts endpoints are supported. For example: `https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900`
+3. Paste the embed URI as the first quoted parameter to this script: `./download "https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900"`
 4. Your woff2 files will be downloaded with sensible names alongside a Sass file that includes them all.
 
 ### End-to-end example:

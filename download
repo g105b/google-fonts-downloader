@@ -11,12 +11,13 @@ if(!file_exists("vendor/autoload.php")) {
 require "vendor/autoload.php";
 
 const VALID_HOST = "fonts.googleapis.com";
-const VALID_PATH = "/css";
+const VALID_PATHS = ["/css", "/css2"];
 const VALID_QUERY = "family=";
 const REGEX_CSS_PARTS = "/\/\*\s*(?<UNICODE_NAME>[^\s]+)\s*\*\/(?<CSS_LINES>[^}]*)/s";
 const REGEX_FONT_FAMILY = "/font-family: [\"']([^\"']+)/";
 const REGEX_FONT_STYLE = "/font-style: ([^;]+)/";
 const REGEX_FONT_WEIGHT = "/font-weight: ([^;]+)/";
+const REGEX_FONT_STRETCH = "/font-stretch: ([^;]+)/";
 const REGEX_URI = "/src:.*url\(([^\)]*)/";
 const REGEX_UNICODE_RANGE = "/unicode-range: ([^;]*)/";
 const WEIGHT_NAMES = [
@@ -99,7 +100,7 @@ function checkUri(string $uri):void {
 		throw new RuntimeException("Host is invalid - $components[host]");
 	}
 
-	if($components["path"] !== VALID_PATH) {
+	if(!in_array($components["path"], VALID_PATHS, true)) {
 		throw new RuntimeException("Path is invalid - $components[path]");
 	}
 
@@ -120,6 +121,7 @@ function parseCss(string $css):array {
 		$fontFamily = null;
 		$fontStyle = null;
 		$fontWeight = null;
+		$fontStretch = null;
 		$woffUri = null;
 		$unicodeRange = null;
 
@@ -132,6 +134,9 @@ function parseCss(string $css):array {
 			}
 			if(preg_match(REGEX_FONT_WEIGHT, $line, $lineMatches)) {
 				$fontWeight = $lineMatches[1];
+			}
+			if(preg_match(REGEX_FONT_STRETCH, $line, $lineMatches)) {
+				$fontStretch = $lineMatches[1];
 			}
 			if(preg_match(REGEX_URI, $line, $lineMatches)) {
 				$woffUri = $lineMatches[1];
@@ -152,6 +157,7 @@ function parseCss(string $css):array {
 		$cssData[$fontFamily][$unicodeName] []= [
 			"style" => $fontStyle,
 			"weight" => $fontWeight,
+			"stretch" => $fontStretch,
 			"src" => $woffUri,
 			"range" => $unicodeRange,
 		];
@@ -162,7 +168,7 @@ function parseCss(string $css):array {
 
 function getWeightName(string $cssWeight):string {
 	$name = array_search($cssWeight, WEIGHT_NAMES);
-	return $name ?: $cssWeight;
+	return $name ?: str_replace(" ", "-", $cssWeight);
 }
 
 function download(array $data, string $outputTo):void {
@@ -207,55 +213,27 @@ function writeSass(array $data, string $outputTo, string $fontPathPrefix):void {
 		$lowercaseFontName = strtolower(str_replace(" ", "-", $fontFamily));
 		$sassFileName = "$outputTo/$lowercaseFontName.scss";
 		$sassContent = "";
-		$sassContent .= "\$font-unicode-ranges: (";
-		$sassContent .= "\n";
-		foreach($unicodeNames as $unicodeName => $definitions) {
-			$unicodeContent = UNICODE_RANGES[$unicodeName];
-			$sassContent .= "\t$unicodeName: \"$unicodeContent\",";
-			$sassContent .= "\n";
-		}
-		$sassContent .= ");";
 
-		$fontStyleArray = [];
-		$fontWeightArray = [];
 		foreach($unicodeNames as $unicodeName => $definitions) {
 			foreach($definitions as $properties) {
-				$fontStyleArray []= $properties["style"];
-				$fontWeightArray []= $properties["weight"];
-			}
-		}
-		$fontStyleArray = array_unique($fontStyleArray);
-		$fontWeightArray = array_unique($fontWeightArray);
-
-		$sassContent .= "\n\n";
-		$sassContent .= "\$font-styles: \n\t" . implode("\n\t", $fontStyleArray) . "\n;";
-		$sassContent .= "\n";
-		$sassContent .= "\$font-weights: (\n";
-		foreach($fontWeightArray as $fontWeight) {
-			$weightName = getWeightName($fontWeight);
-			$sassContent .= "\t$weightName: $fontWeight,";
-			$sassContent .= "\n";
-		}
-		$sassContent .= ");";
-
-		$sassContent .= "\n\n";
-
-		$sassContent .= <<<SASS
-@each \$unicode-name, \$unicode-range in \$font-unicode-ranges {
-	@each \$style in \$font-styles {
-		@each \$weight-name, \$weight-value in \$font-weights {
-			@font-face {
-				font-family: "$fontFamily";
-				font-style: \$style;
-				font-weight: \$weight-value;
-				font-display: swap;
-				src: url("$fontPathPrefix/$lowercaseFontName/$lowercaseFontName-#{\$weight-name}-#{\$style}-#{\$unicode-name}.woff2") format("woff2");
-				unicode-range: \$unicode-range;
-			}
-		}
-	}
+				$weightName = getWeightName($properties["weight"]);
+				$fontStretchLine = $properties["stretch"]
+					? "font-stretch: $properties[stretch];"
+					: "";
+				$sassContent .= <<<SASS
+@font-face {
+	font-family: "$fontFamily";
+	font-style: $properties[style];
+	font-weight: $properties[weight];
+	$fontStretchLine
+	font-display: swap;
+	src: url("$fontPathPrefix/$lowercaseFontName/$lowercaseFontName-$weightName-$properties[style]-$unicodeName.woff2") format("woff2");
+	unicode-range: $properties[range];
 }
+
 SASS;
+			}
+		}
 
 		file_put_contents($sassFileName, $sassContent);
 	}
